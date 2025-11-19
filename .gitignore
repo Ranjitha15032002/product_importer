@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+importer_uploads/
+.env
+*.sqlite

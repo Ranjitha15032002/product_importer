@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Product Importer — Acme Inc.</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#06b6d4;--success:#10b981;--danger:#ef4444}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,#071024 0%, #071828 60%);color:#e6eef6}
+    .container{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;gap:18px}
+    header h1{margin:0;font-size:20px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .upload-row{display:flex;gap:12px;align-items:center}
+    input[type=file]{display:none}
+    .btn{background:var(--accent);color:#042029;padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .progress{height:12px;background:rgba(255,255,255,0.03);border-radius:8px;overflow:hidden;margin-top:12px}
+    .progress > b{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#60a5fa)}
+    .status{margin-top:8px;font-size:13px;color:var(--muted)}
+    .controls{display:flex;gap:8px;margin-left:auto}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:16px;margin-top:16px}
+    .list{padding:8px 0}
+    .filters{display:flex;gap:8px;flex-wrap:wrap}
+    .input,select{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px;border-radius:8px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px}
+    th{color:var(--muted);font-weight:600}
+    .small{font-size:12px;color:var(--muted)}
+    .actions{display:flex;gap:6px}
+    .pill{padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.02);color:var(--muted);font-size:12px}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    .danger{background:var(--danger);color:white}
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,0.6)}
+    .modal .panel{width:680px;background:var(--card);padding:18px;border-radius:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    @media(max-width:880px){.grid{grid-template-columns:1fr;}.controls{margin-top:8px}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div style="display:flex;align-items:center;gap:12px">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <rect width="24" height="24" rx="6" fill="#06202b"></rect>
+          <path d="M6 12h12M6 8h12M6 16h12" stroke="#06b6d4" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+        <h1>Product Importer</h1>
+      </div>
+      <div class="controls" style="margin-left:auto">
+        <button id="refreshBtn" class="btn ghost">Refresh</button>
+        <button id="deleteAllBtn" class="btn danger">Delete All</button>
+      </div>
+    </header>
+
+    <section class="card" style="margin-top:14px">
+      <div class="upload-row">
+        <label class="btn" id="chooseBtn">Choose CSV</label>
+        <input id="fileInput" type="file" accept=".csv" />
+        <div style="flex:1">
+          <div id="fileName" class="small">No file selected</div>
+          <div class="progress" aria-hidden><b id="progressFill"></b></div>
+          <div class="status" id="statusText">Idle</div>
+        </div>
+        <div style="margin-left:12px">
+          <button id="uploadBtn" class="btn" disabled>Upload</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <div>
+        <div class="card list">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="filters">
+              <input id="qSku" class="input" placeholder="Filter SKU" />
+              <input id="qName" class="input" placeholder="Filter name" />
+              <select id="qActive" class="input">
+                <option value="">All</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+              <button id="applyFilter" class="btn ghost">Apply</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div class="small">Total: <span id="totalCount">—</span></div>
+            </div>
+          </div>
+
+          <div id="tableWrap">
+            <table>
+              <thead>
+                <tr><th>SKU</th><th>Name</th><th class="small">Price</th><th class="small">Active</th><th></th></tr>
+              </thead>
+              <tbody id="productBody">
+                <tr><td colspan="5" class="small">No products loaded.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+            <div class="small">Page <span id="pageNum">1</span></div>
+            <div>
+              <button id="prevPage" class="btn ghost">Prev</button>
+              <button id="nextPage" class="btn ghost">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="card">
+          <h3 style="margin:0 0 8px 0">Import Status</h3>
+          <div id="eventsLog" style="min-height:160px;font-size:13px;color:var(--muted);white-space:pre-wrap"></div>
+          <hr style="border-color:rgba(255,255,255,0.03);margin:12px 0" />
+          <h4 style="margin:0 0 8px 0">Actions</h4>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button id="testWebhook" class="btn ghost">Test Webhook</button>
+            <button id="openWebhooks" class="btn ghost">Manage Webhooks</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="small">Tip: For large files use CSV UTF-8. The importer deduplicates SKUs case-insensitively.</footer>
+  </div>
+
+  <div id="confirmModal" class="modal"><div class="panel">
+    <h3>Confirm delete all products</h3>
+    <p class="small">This will permanently delete all products. This action cannot be undone.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button id="cancelDel" class="btn ghost">Cancel</button>
+      <button id="confirmDel" class="btn danger">Delete All</button>
+    </div>
+  </div></div>
+
+  <script>
+    // Simple frontend logic using fetch + SSE
+    const fileIn = document.getElementById('fileInput');
+    const chooseBtn = document.getElementById('chooseBtn');
+    const fileName = document.getElementById('fileName');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressFill = document.getElementById('progressFill');
+    const statusText = document.getElementById('statusText');
+    const eventsLog = document.getElementById('eventsLog');
+    const totalCount = document.getElementById('totalCount');
+    const productBody = document.getElementById('productBody');
+    const pageNum = document.getElementById('pageNum');
+    const prevPage = document.getElementById('prevPage');
+    const nextPage = document.getElementById('nextPage');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    let selectedFile = null;
+    let currentTask = null;
+    let page = 1;
+    const perPage = 25;
+
+    chooseBtn.addEventListener('click', () => fileIn.click());
+    fileIn.addEventListener('change', e => {
+      selectedFile = e.target.files[0];
+      fileName.textContent = selectedFile ? `${selectedFile.name} — ${Math.round(selectedFile.size/1024)} KB` : 'No file selected';
+      uploadBtn.disabled = !selectedFile;
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if(!selectedFile) return;
+      uploadBtn.disabled = true;
+      statusText.textContent = 'Uploading...';
+      progressFill.style.width = '4%';
+
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      try{
+        const res = await fetch('/api/upload', {method:'POST', body: fd});
+        const json = await res.json();
+        currentTask = json.task_id;
+        eventsLog.textContent = `Started: ${JSON.stringify(json)}\n`;
+        listenEvents(currentTask);
+      }catch(err){
+        statusText.textContent = 'Upload failed';
+        console.error(err);
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+
+    function listenEvents(taskId){
+      const s = new EventSource(`/api/events?task_id=${taskId}`);
+      statusText.textContent = 'Processing...';
+      s.onmessage = (e) => {
+        try{
+          const obj = JSON.parse(e.data.replace(/'/g,'"'));
+          eventsLog.textContent += JSON.stringify(obj) + '\n';
+          if(obj.pct) progressFill.style.width = obj.pct + '%';
+          if(obj.status) statusText.textContent = obj.status;
+          if(obj.status === 'complete' || obj.status === 'error'){
+            s.close();
+            refreshProducts();
+          }
+        }catch(err){
+          // fallback print
+          eventsLog.textContent += e.data + '\n';
+        }
+      };
+      s.onerror = () => { s.close(); statusText.textContent = 'Connection closed'; }
+    }
+
+    async function refreshProducts(){
+      statusText.textContent = 'Loading products...';
+      const q = new URLSearchParams({page: page, per_page: perPage});
+      const res = await fetch('/api/products?'+q.toString());
+      const data = await res.json();
+      totalCount.textContent = data.total;
+      renderProducts(data.items);
+      statusText.textContent = 'Idle';
+    }
+
+    function renderProducts(items){
+      productBody.innerHTML = '';
+      if(!items || items.length===0){
+        productBody.innerHTML = '<tr><td colspan="5" class="small">No products</td></tr>';
+        return;
+      }
+      for(const p of items){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(p.sku)}</strong></td>
+          <td>${escapeHtml(p.name || '')}</td>
+          <td class="small">${p.price_cents==null ? '-' : (p.price_cents/100).toFixed(2)}</td>
+          <td class="small">${p.active ? 'Yes' : 'No'}</td>
+          <td class="actions">
+            <button class="btn ghost" data-id="${p.id}" onclick="editProduct(${p.id})">Edit</button>
+            <button class="btn ghost" data-id="${p.id}" onclick="deleteProduct(${p.id})">Delete</button>
+          </td>
+        `;
+        productBody.appendChild(tr);
+      }
+    }
+
+    function escapeHtml(s){return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);}
+
+    prevPage.addEventListener('click', ()=>{ if(page>1){page--; pageNum.textContent=page; refreshProducts();}});
+    nextPage.addEventListener('click', ()=>{ page++; pageNum.textContent=page; refreshProducts();});
+    refreshBtn.addEventListener('click', ()=>refreshProducts());
+
+    async function deleteProduct(id){
+      if(!confirm('Delete product '+id+'?')) return;
+      await fetch('/api/products/'+id, {method:'DELETE'});
+      refreshProducts();
+    }
+
+    async function editProduct(id){
+      // minimal inline prompt-based editor
+      const name = prompt('New name');
+      if(name===null) return;
+      await fetch('/api/products/'+id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+      refreshProducts();
+    }
+
+    // Delete all flow
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    const confirmModal = document.getElementById('confirmModal');
+    const cancelDel = document.getElementById('cancelDel');
+    const confirmDel = document.getElementById('confirmDel');
+
+    deleteAllBtn.addEventListener('click', ()=>{ confirmModal.style.display='flex'; });
+    cancelDel.addEventListener('click', ()=>{ confirmModal.style.display='none'; });
+    confirmDel.addEventListener('click', async ()=>{
+      confirmModal.style.display='none';
+      statusText.textContent = 'Deleting all...';
+      await fetch('/api/products/bulk-delete?confirm=true', {method:'POST'});
+      refreshProducts();
+      statusText.textContent = 'Idle';
+    });
+
+    // init
+    refreshProducts();
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+# app/crud.py
+from sqlalchemy.orm import Session
+from . import models, schemas
+
+# --- Products ---
+def create_product(db: Session, data: schemas.ProductCreate):
+    obj = models.Product(
+        sku=data.sku,
+        sku_lower=(data.sku or "").lower(),
+        name=data.name,
+        description=data.description,
+        price_cents=data.price_cents,
+        active=data.active if data.active is not None else True
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+def get_products(db: Session, skip: int = 0, limit: int = 25, filters: dict | None = None):
+    """
+    Return (items, total)
+
+    - Accepts `skip` and `limit` (offset/limit) for compatibility with the API layer.
+    - `filters` is a dict supporting keys: sku, name, description, active.
+    """
+    q = db.query(models.Product)
+    if filters:
+        if filters.get('sku'):
+            q = q.filter(models.Product.sku.ilike(f"%{filters['sku']}%"))
+        if filters.get('name'):
+            q = q.filter(models.Product.name.ilike(f"%{filters['name']}%"))
+        if filters.get('description'):
+            q = q.filter(models.Product.description.ilike(f"%{filters['description']}%"))
+        if filters.get('active') is not None:
+            q = q.filter(models.Product.active == filters['active'])
+    total = q.count()
+    items = q.offset(skip).limit(limit).all()
+    return items, total
+
+def get_product(db: Session, id: int):
+    return db.query(models.Product).filter(models.Product.id == id).first()
+
+def update_product(db: Session, id: int, patch: schemas.ProductUpdate):
+    obj = get_product(db, id)
+    if not obj:
+        return None
+    for k, v in patch.dict(exclude_unset=True).items():
+        if k == "sku" and v is not None:
+            setattr(obj, "sku_lower", v.lower())
+        setattr(obj, k, v)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+def delete_product(db: Session, id: int):
+    obj = get_product(db, id)
+    if obj:
+        db.delete(obj)
+        db.commit()
+    return obj
+
+def delete_all_products(db: Session):
+    # TRUNCATE for speed; careful in prod
+    db.execute("TRUNCATE TABLE products RESTART IDENTITY;")
+    db.commit()
+
+# --- Webhooks ---
+def create_webhook(db: Session, data: schemas.WebhookCreate):
+    obj = models.Webhook(
+        name=data.name,
+        url=str(data.url),
+        event=data.event,
+        enabled=data.enabled
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+def get_webhooks(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Webhook).offset(skip).limit(limit).all()
+
+def get_webhook(db: Session, id: int):
+    return db.query(models.Webhook).filter(models.Webhook.id == id).first()
+
+def update_webhook(db: Session, id: int, patch: schemas.WebhookUpdate):
+    obj = get_webhook(db, id)
+    if not obj:
+        return None
+    for k, v in patch.dict(exclude_unset=True).items():
+        setattr(obj, k, v)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+def delete_webhook(db: Session, id: int):
+    obj = get_webhook(db, id)
+    if obj:
+        db.delete(obj)
+        db.commit()
+    return obj
